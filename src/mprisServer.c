@@ -47,6 +47,9 @@ static const char xmlForNode[] =
 	"		<method name='OpenUri'>"
 	"			<arg name='Uri'         type='s'/>"
 	"		</method>"
+	"		<method name='DeadBeefSetRating'>"
+	"			<arg name='Rating'      type='i'/>"
+	"		</method>"
 	"		<signal name='Seeked'>"
 	"			<arg name='Position'    type='x' direction='out'/>"
 	"		</signal>"
@@ -118,6 +121,7 @@ GVariant* getMetadataForTrack(int track_id, struct MprisData *mprisData) {
 		const char *uri = deadbeef->pl_find_meta(track, ":URI");
 		const char *genres = deadbeef->pl_find_meta(track, "genre");
 		const int playlistIndex = deadbeef->plt_get_curr_idx();
+		const int userRating = deadbeef->pl_find_meta_int(track, "rating", 0);
 
 		deadbeef->pl_lock();
 
@@ -231,6 +235,9 @@ GVariant* getMetadataForTrack(int track_id, struct MprisData *mprisData) {
 				g_variant_builder_add(builder, "{sv}", "xesam:trackNumber", g_variant_new("i", trackNumberAsInt));
 			}
 		}
+
+		debug("get Metadata userRating: %d", userRating);
+		g_variant_builder_add(builder, "{sv}", "xesam:userRating", g_variant_new("d", (double) userRating / 5.0));
 
 		char *fullUri = malloc(strlen(uri) + 7 + 1); // strlen(uri) + strlen("file://") + \0
 		strcpy(fullUri, "file://");
@@ -416,6 +423,51 @@ static void onPlayerMethodCallHandler(GDBusConnection *connection, const char *s
 			deadbeef->plt_unref(pl);
 			deadbeef->pl_item_unref(track);
 			deadbeef->sendmessage(DB_EV_PLAY_NUM, 0, track_id, 0);
+		}
+		g_dbus_method_invocation_return_value(invocation, NULL);
+	} else if (strcmp(methodName, "DeadBeefSetRating") == 0) {
+		const int rating = 0;
+		DB_playItem_t *track = deadbeef->streamer_get_playing_track();
+		ddb_playlist_t *pl = deadbeef->plt_get_curr();
+
+		if (track) {
+			g_variant_get(parameters, "(i)", &rating);
+			debug("Set rating %d.", rating);
+			deadbeef->pl_set_meta_int(track, "rating", rating);
+
+			// Following code copied from plugins/gtkui/trkproperties.c
+			deadbeef->pl_lock();
+			const char *dec = deadbeef->pl_find_meta_raw(track, ":DECODER");
+			char decoder_id[100];
+			if (dec) {
+				strncpy(decoder_id, dec, sizeof(decoder_id));
+			}
+			int match = track && dec;
+			deadbeef->pl_unlock();
+			if (match) {
+				int is_subtrack = deadbeef->pl_get_item_flags(track) & DDB_IS_SUBTRACK;
+				if (!is_subtrack) {
+					// Find decoder
+					DB_decoder_t *dec = NULL;
+					DB_decoder_t **decoders = deadbeef->plug_get_decoder_list();
+					for (int i = 0; decoders[i]; i++) {
+						if (!strcmp(decoders[i]->plugin.id, decoder_id)) {
+							dec = decoders[i];
+							if (dec->write_metadata) {
+								dec->write_metadata(track);
+							}
+							break;
+						}
+					}
+				}
+			}
+
+			ddb_event_track_t *ev = (ddb_event_track_t *)deadbeef->event_alloc(DB_EV_TRACKINFOCHANGED);
+			ev->track = track; //Needs a reference while the event is running so we won't unreference below
+			deadbeef->event_send((ddb_event_t*)ev, 0, 0);
+
+			deadbeef->plt_modified(pl);
+			deadbeef->plt_unref(pl);
 		}
 		g_dbus_method_invocation_return_value(invocation, NULL);
 	} else {
