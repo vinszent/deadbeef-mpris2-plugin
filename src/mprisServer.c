@@ -53,13 +53,14 @@ static const char xmlForNode[] =
 	"		<signal name='Seeked'>"
 	"			<arg name='Position'    type='x' direction='out'/>"
 	"		</signal>"
-	"		<property access='read'	     name='PlaybackStatus' type='s'/>"
-	"		<property access='readwrite' name='LoopStatus'     type='s'/>"
-	"		<property access='readwrite' name='Rate'           type='d'/>"
-	"		<property access='readwrite' name='Shuffle'        type='b'/>"
-	"		<property access='read'      name='Metadata'       type='a{sv}'/>"
-	"		<property access='readwrite' name='Volume'         type='d'/>"
-	"		<property access='read'      name='Position'       type='x'>"
+	"		<property access='read'      name='DeadBeefCanRate' type='b'/>"
+	"		<property access='read'	     name='PlaybackStatus'  type='s'/>"
+	"		<property access='readwrite' name='LoopStatus'      type='s'/>"
+	"		<property access='readwrite' name='Rate'            type='d'/>"
+	"		<property access='readwrite' name='Shuffle'         type='b'/>"
+	"		<property access='read'      name='Metadata'        type='a{sv}'/>"
+	"		<property access='readwrite' name='Volume'          type='d'/>"
+	"		<property access='read'      name='Position'        type='x'>"
 	"			<annotation name='org.freedesktop.DBus.Property.EmitsChangedSignal' value='false'/>"
 	"		</property>"
 	"		<property access='read'         name='MinimumRate'   type='d'/>"
@@ -556,6 +557,8 @@ static GVariant* onPlayerGetPropertyHandler(GDBusConnection *connection, const c
 	} else if (strcmp(propertyName, "CanSeek") == 0) {
 		result = g_variant_new_boolean(TRUE);
 	} else if (strcmp(propertyName, "CanControl") == 0) {
+		result = g_variant_new_boolean(TRUE);
+	} else if (strcmp(propertyName, "DeadBeefCanRate") == 0) {
 		result = g_variant_new_boolean(TRUE);
 	}
 	return result;
